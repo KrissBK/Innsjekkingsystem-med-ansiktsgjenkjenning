@@ -1,0 +1,229 @@
+﻿@page "/Admin"
+@using FaceRecogApp.Web.Dto
+@inject IJSRuntime JSRuntime
+@inherits AdminBase
+
+<div class="container-fluid">
+    <h3>Employees</h3>
+    <div class="row mb-2">
+        <div class="col-2">
+            <h4 class="">Create Employee</h4>
+            <EditForm Model="employeeDto" OnSubmit="CreateEmployee">
+                <div class="row g-3 mb-2">
+                    <div class="col">
+                        <label for="employeeFirstName" class="form-label">First Name</label>
+                        <InputText @bind-Value="employeeDto!.FirstName" class="form-control" id="employeeFirstName" aria-label="First Name" ></InputText>
+                    </div>
+
+                    <div class="col">
+                        <label for="employeeLastName" class="form-label">Last Name</label>
+                        <InputText @bind-Value="employeeDto!.LastName" class="form-control" id="employeeLastName" aria-label="Last Name"></InputText>
+                    </div>
+                </div>
+                <div class="row g-3 mb-2">
+                    <div class="col">
+                        <label for="employeeJobTitleId" class="form-label">Job Title Id</label>
+                        <InputNumber @bind-Value="jobTitleId" class="form-control" id="employeeJobTitleId" aria-label="Job Title Id"></InputNumber>
+                    </div>
+                    <div class="col">
+                        <label for="employeePersonGroupId" class="form-label">PersonGroupId</label>
+                        <InputText @bind-Value="personGroupId" class="form-control" id="employeePersonGroupId" aria-label="Person Group Id"></InputText>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Create</button>
+            </EditForm>
+        </div>
+
+        <div class="col-1"></div>
+
+        <div class="col-2">
+            <h4>Delete Employee</h4>
+            <EditForm Model="employeeDeleteDto" OnSubmit="DeleteEmployee">
+                <div class="row g-3 mb-2">
+                    <div class="col">
+                        <label for="employeeIdDelete" class="form-label">Employee to Delete</label>
+                        <InputSelect @bind-Value="employeeDeleteDto!.EmployeeId" class="form-control" id="employeeIdDelete" aria-label="Employee Id">
+                            @if (Employees != null) {
+                                @foreach (var employee in Employees)
+                                {
+                                    @if (employee != null)
+                                    {
+                                        <option value="@employee.EmployeeId">@employee.FirstName @employee.LastName</option>
+                                    } 
+                                }
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="col">
+                        <label for="employeePersonGroupDelete" class="form-label">Employee PersonGroup</label>
+                        <InputText @bind-Value="employeeDeleteDto!.PersonGroupId" class="form-control" id="employeePersonGroupDelete" aria-label="Person Group Id"></InputText>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-danger">Delete</button>
+            </EditForm>
+        </div>
+    </div>
+
+    <hr />
+
+    <h3>Face Service</h3>
+    <div class="row mb-2">
+        <div class="col-2">
+            <h4>Add Face to employee</h4>
+            <EditForm id="addFaceForm" Model="employeeAddFaceDto" OnSubmit="AddFaceToEmployee">
+                <div class="row g-3 mb-2">
+                    <div class="col">
+                        <label for="employeeIdAddFace" class="form-label">Employee Name</label>
+                        <InputSelect @bind-Value="employeeAddFaceDto!.EmployeeId" class="form-control" id="employeeIdAddFace" aria-label="Employee Id">
+                            @if (Employees != null)
+                            {
+                                @foreach (var employee in Employees)
+                                {
+                                    @if (employee != null)
+                                    {
+                                        <option value="@employee.EmployeeId">@employee.FirstName @employee.LastName</option>
+                                    }
+                                }
+                            }
+                        </InputSelect>
+                    </div>
+                     
+                    <div class="col">
+                        <label for="employeePersonGroupAddFace" class="form-label">Employee PersonGroup</label>
+                        <InputText @bind-Value="employeeAddFaceDto!.PersonGroupId" class="form-control" id="employeePersonGroupAddFace" aria-label="Person Group Id"></InputText>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <InputText @bind-Value="employeeAddFaceDto!.ImageString" type="hidden" id="hiddenTextBox"></InputText>
+                </div>
+            </EditForm>
+
+            <div class="row g-3 mb-2 mt-2">
+                <div class="row mb-2">
+                    <div class="col">
+                        <video id="videoFeed" width="640" height="480" />
+                        <canvas class="d-none" id="currentFrame" width="640" height="480" />
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col">
+                        <div class="d-grid gap-2 d-md-block">
+                            <button class="btn btn-primary mb-3" @onclick="StartCamera">Start Camera</button>
+                            <button class="btn btn-primary mb-3" @onclick="CaptureFrameAddFace">Take Picture</button>
+                            <button class="btn btn-primary mb-3" form="addFaceForm" type="submit">Add Face</button>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-1"></div>
+
+        <div class="col-2">
+            <h4>Train Person Group</h4>
+            <EditForm Model="trainPersonGroupDto" OnSubmit="TrainPersonGroup">
+                <div class="row g-3 mb-2">
+                    <div class="col">
+                        <label for="personGroupToTrain" class="form-label">PersonGroup</label>
+                        <InputText @bind-Value="trainPersonGroupDto!.PersonGroupId" class="form-control" id="personGroupToTrain" aria-label="Person Group Id"></InputText>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-2">
+                    <div class="col">
+                        <button type="submit" class="btn btn-primary">Train</button>
+                    </div>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+
+</div>
+
+@code {
+
+    public EmployeeDto? employeeDto { get; set; }
+    public EmployeeDeleteDto? employeeDeleteDto { get; set; }
+    public EmployeeAddFaceDto? employeeAddFaceDto { get; set; }
+    public TrainPersonGroupDto? trainPersonGroupDto { get; set; }
+    protected override void OnInitialized() {
+        employeeDto ??= new();
+        employeeDeleteDto ??= new();
+        employeeAddFaceDto ??= new();
+        trainPersonGroupDto ??= new();
+    }
+
+    public int jobTitleId;
+    public string? personGroupId;
+
+    private async void CreateEmployee()
+    {
+        if(!await CallCreateEmployee(employeeDto, jobTitleId, personGroupId))
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Could not create employee.");
+        } else
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Employee created.");
+            RefreshPage();
+        }
+    }
+
+    private async void DeleteEmployee()
+    {
+        if(!await CallDeleteEmployee(employeeDeleteDto.EmployeeId, employeeDeleteDto.PersonGroupId))
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Could not delete employee.");
+        } else
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Employee deleted");
+            RefreshPage();
+        }
+    }
+
+    [JSInvokable]
+    public async void ProcessImageAddFace(string imageString)
+    {
+        imageString = imageString.Split(",")[1];
+        employeeAddFaceDto.ImageString = imageString;
+
+    }
+
+    private async void AddFaceToEmployee()
+    {
+        if (!await CallAddFaceToEmployee(employeeAddFaceDto.PersonGroupId, employeeAddFaceDto.EmployeeId, employeeAddFaceDto.ImageString))
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Could not add face to employee.");
+        }
+        else
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Face added");
+        }
+    }
+
+    private async void TrainPersonGroup()
+    {
+        if (!await CallTrainPersonGroup(trainPersonGroupDto.PersonGroupId))
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Could not train person group.");
+        }
+        else
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Person group trained");
+        }
+    }
+
+    private async Task CaptureFrameAddFace()
+    {
+        await JSRuntime.InvokeVoidAsync("getFrameAddFace", "videoFeed", "currentFrame", DotNetObjectReference.Create(this));
+
+        await JSRuntime.InvokeVoidAsync("alert", "Image taken");
+    }
+
+    private async Task StartCamera()
+    {
+        await JSRuntime.InvokeVoidAsync("startVideo", "videoFeed");
+    }
+}

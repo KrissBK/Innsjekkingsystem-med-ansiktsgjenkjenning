@@ -1,0 +1,73 @@
+﻿@page "/login"
+@inject IJSRuntime JSRuntime
+@inherits LoginBase 
+
+<PageTitle>Check In/Out</PageTitle>
+
+<h1 class='text-center'>Check In/Out</h1>
+
+<div style="text-align:center">
+<div class="container">
+    <div class="row mb-2">
+        <div class="col">
+            <video id="videoFeed" width="640" height="480" />
+            <canvas class="d-none" id="currentFrame" width="640" height="480" />
+        </div>
+    </div>
+    <div class="row mb-2">
+        <div class="col">
+        <div class="d-grid gap-2 d-md-block">  
+
+            <button class="btn btn-primary mb-3" @onclick="CaptureFrameCheckIn">Check In/Out</button>
+            <button class="btn btn-secondary mb-3" @onclick="StopCamera">Cancel</button>
+            
+        </div>
+        </div>
+    </div>
+</div>
+</div>
+
+
+@code {
+    private IList<Guid>? employeeGuids = new List<Guid>();
+    private bool updateResult;
+
+    // Funksjonene under er basert på kode fra: https://wellsb.com/csharp/aspnet/blazor-webcam-capture
+    protected override async Task OnInitializedAsync()
+    {
+        await JSRuntime.InvokeVoidAsync("startVideo", "videoFeed");
+
+    }
+
+    private async Task CaptureFrameCheckIn()
+    {
+        await JSRuntime.InvokeVoidAsync("getFrameCheckIn", "videoFeed", "currentFrame", DotNetObjectReference.Create(this));
+
+    }
+
+    private async Task StopCamera()
+    {
+        await JSRuntime.InvokeVoidAsync("stopVideo", "videoFeed");
+        GoToIndex();
+
+    }
+
+
+    [JSInvokable]
+    public async void ProcessImageCheckIn(string imageString)
+    {
+        imageString = imageString.Split(",")[1];
+        employeeGuids = await CallIdentifyEmployee(imageString);
+
+        if (employeeGuids.Count > 0)
+        {
+            updateResult = await CallUpdateAttendance(employeeGuids[0]);
+        } else
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Something went wrong, try again.");
+            await JSRuntime.InvokeVoidAsync("startVideo", "videoFeed");
+        }
+
+
+    }
+}

@@ -1,0 +1,66 @@
+﻿@page "/"
+@inherits IndexBase
+
+
+<div class="container-fluid">
+    <div class="row mb-2">
+        <div class="col-2">
+            <h3>Welcome to Evidi</h3>
+            <h4>@time</h4>
+        </div>
+        <div class="col-5">
+            <div class="embed-responsive embed-responsive-16by9">
+                <iframe class="embed-responsive-item w-100 h-100" src="https://www.yr.no/en/content/1-72837/table.html" scrolling="no"></iframe>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-10">
+            <div class="embed-responsive embed-responsive-16by9">
+                <iframe class="embed-responsive-item border border-secondary-subtle w-100" src="https://outlook.live.com/calendar/published/00000000-0000-0000-0000-000000000000/7feb62ea-c7d0-434b-b6e7-98d2f0d41be2/cid-5C61EBCE6FE0FCB2/calendar.html" style="height:700px;" scrolling="no"></iframe>
+            </div>
+        </div>
+        <div class="col-2">
+            <div class="card" style="height: 654px;">
+                <div class="card-header">
+                    <strong>Attendance</strong>
+                </div>
+                <ul class="list-group list-group-flush">  
+                    @try
+                    {
+                        @foreach (var employee in EmployeeList)
+                        {
+                            <li class="list-group-item">@employee.FirstName @employee.LastName</li>
+                        }
+                    }
+                    catch (NullReferenceException) {}    
+                </ul>
+            </div>
+            <div class="d-grid gap-2 mt-2">
+                <a href="/login" class="btn btn-primary" >Check In/Out</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@code {
+    string? time;
+    Timer? timer;
+
+    protected override void OnInitialized()
+    {
+        timer = new Timer(Tick, null, 0, 1000);
+    }
+
+    private void Tick(object _)
+    {
+        time = DateTime.Now.ToLongTimeString();
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        timer?.Dispose();
+    }
+}

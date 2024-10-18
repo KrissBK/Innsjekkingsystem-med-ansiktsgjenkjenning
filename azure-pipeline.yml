@@ -1,0 +1,200 @@
+name: 'FaceRecognitionPipeline'
+
+trigger:
+- main
+
+pool: 
+  vmImage: 'ubuntu-latest'
+
+
+variables: 
+  solution: '**/*.sln'
+  buildPlatform: 'Any CPU'
+  buildConfiguration: 'Release'
+  dotNetFramework: 'net6.0'
+  dotNetVersion: '6.0.x'
+  vmImageName: 'ubuntu-latest'
+  resourceGroupName: 'bachelor-gruppe1-dev-rg'
+  serviceConnectionName: 'SC-CommunicateBachelor&Trainee-gr1'
+  location: 'westeurope'
+
+stages:
+  - stage: Deploy
+    displayName: 'Deploy'
+    jobs:
+      - job: build
+        displayName: 'Build solution'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+        - task: DotNetCoreCLI@2
+          displayName: 'restore'
+          inputs:
+            command: 'restore'
+            projects: '**/*.csproj'
+
+        - task: DotNetCoreCLI@2
+          displayName: 'build release'
+          inputs:
+            command: 'build'
+            projects: '**/*.csproj'
+            arguments: '--configuration Release --no-restore'
+
+        - task: DotNetCoreCLI@2
+          displayName: 'Publish project(s)'
+          inputs:
+            command: 'publish'
+            projects: '$(Build.SourcesDirectory)/**/FaceRecogApp/*.csproj'
+            arguments: '--no-restore --no-build --configuration Release --output $(build.ArtifactStagingDirectory)'
+            zipAfterPublish: true
+            publishWebProjects: false
+            
+        - task: DotNetCoreCLI@2
+          displayName: 'Publish project(s)'
+          inputs:
+            command: 'publish'
+            projects: '$(Build.SourcesDirectory)/**/FaceRecogApp.Web/*.csproj'
+            arguments: '--no-restore --no-build --configuration Release --output $(build.ArtifactStagingDirectory)'
+            zipAfterPublish: true
+            publishWebProjects: false
+            
+        - task: CopyFiles@2
+          displayName: 'Copy bicep files'
+          inputs:
+            SourceFolder: '$(Build.SourcesDirectory)'
+            Contents: |
+              **/Infrastructure/**
+            TargetFolder: '$(build.ArtifactStagingDirectory)/'
+
+
+        - task: PublishBuildArtifacts@1
+          displayName: 'Publish Artifact'
+          inputs:
+            PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+            ArtifactName: 'drop'
+            publishLocation: 'Container'
+
+      - job: DeployToAzure
+        displayName: 'Deploy to Azure'
+        dependsOn: build
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: DownloadBuildArtifacts@1
+            inputs:
+              buildType: 'current'
+              downloadType: 'single'
+              artifactName: 'drop'
+              downloadPath: '$(System.ArtifactsDirectory)'
+              
+          - task: AzureCLI@2
+            displayName: "Deploy bicep"
+            inputs:
+              azureSubscription: 'SC-CommunicateBachelor&Trainee-gr1'
+              scriptType: pscore
+              scriptLocation: inlineScript
+              inlineScript: |
+                az --version
+                az deployment group create --mode Incremental --resource-group 'bachelor-gruppe1-dev-rg' --template-file $(Pipeline.Workspace)/a/drop/Infrastructure/main.bicep
+          
+          - task: AzureRmWebAppDeployment@4
+            displayName: 'Deploy to Web App'
+            inputs:
+              ConnectionType: 'AzureRM'
+              azureSubscription: 'SC-CommunicateBachelor&Trainee-gr1'
+              appType: 'webApp'
+              WebAppName: 'FaceRecog-wa'
+              packageForLinux: '$(Build.ArtifactStagingDirectory)/**/FaceRecogApp.zip'
+              deploymentType: 'zipDeploy'
+
+          - task: AzureRmWebAppDeployment@4
+            displayName: 'Deploy to Secondary Web App'
+            inputs:
+              ConnectionType: 'AzureRM'
+              azureSubscription: 'SC-CommunicateBachelor&Trainee-gr1'
+              appType: 'webApp'
+              WebAppName: 'FaceRecog-sr'
+              packageForLinux: '$(Build.ArtifactStagingDirectory)/**/FaceRecogApp.Web.zip'
+              deploymentType: 'zipDeploy'      
+
+          - task: AzureAppServiceSettings@1
+            displayName: "FaceRecogApp API Service Settings"     
+            inputs:
+              azureSubscription: 'SC-CommunicateBachelor&Trainee-gr1'
+              appName: "FaceRecog-wa" # Er dette riktig navn?
+              appsettings: |
+                [
+                  {
+                    "name": "ConnectionStrings__DefaultConnection",
+                    "value": "Server=tcp:bachelor-gruppe1.database.windows.net,1433;Initial Catalog=Employees;Persist Security Info=False;User ID=Bachelor1;Password=6UYLxQF9J&6q@63Po%BV;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;",
+                    "slotSetting": false
+                  },
+                  {
+                    "name": "Logging__LogLevel__Default",
+                    "value": "Information",
+                    "slotSetting": false
+                  },
+                  {
+                    "name": "Logging__LogLevel__Microsoft.AspNetCore",
+                    "value": "Warning",
+                    "slotSetting": false
+                  },
+                  {
+                    "name": "AllowedHosts",
+                    "value": "*",
+                    "slotSetting": false
+                  },
+                  {
+                    "name": "CorsUrlHTTP",
+                    "value": "http://facerecog-sr.azurewebsites.net",
+                    "slotSetting": false
+                  },
+                  {
+                    "name": "CorsUrlHTTPS",
+                    "value": "https://facerecog-sr.azurewebsites.net",
+                    "slotSetting": false
+                  },
+                  {
+                    "name": "VISION_KEY",
+                    "value": "20cf2bd095bf4d7e8c1dd637102f1b9a",
+                    "slotSetting": false
+                  },
+                  {
+                    "name": "VISION_ENDPOINT",
+                    "value": "https://face-service.cognitiveservices.azure.com/",
+                    "slotSetting": false
+                  }
+                ]
+
+          - task: AzureAppServiceSettings@1
+            displayName: "FaceRecogApp WebApp Service Settings"     
+            inputs:
+              azureSubscription: 'SC-CommunicateBachelor&Trainee-gr1'
+              appName: "FaceRecog-sr" # Er dette riktig navn?
+              appsettings: |
+                [
+                  {
+                    "name": "Logging__LogLevel__Default",
+                    "value": "Information",
+                    "slotSetting": false
+                  },
+                  {
+                    "name": "Logging__LogLevel__Microsoft.AspNetCore",
+                    "value": "Warning",
+                    "slotSetting": false
+                  },
+                  {
+                    "name": "AllowedHosts",
+                    "value": "*",
+                    "slotSetting": false
+                  },
+                  {
+                    "name": "BaseUrl",
+                    "value": "https://facerecog-wa.azurewebsites.net/",
+                    "slotSetting": false
+                  }
+                ]
+
+          
+
+
